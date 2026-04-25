@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="記帳本">
+<title>記帳本</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #F2F4F8;
+    --surface: #FFFFFF;
+    --surface2: #F8F9FB;
+    --border: #E8EAF0;
+    --border2: #D4D8E4;
+    --text: #111827;
+    --text2: #4B5563;
+    --text3: #9CA3AF;
+    --accent: #4361EE;
+    --accent-dark: #3451D1;
+    --accent-light: #EEF1FD;
+    --cc: #7C3AED;
+    --cc-light: #F5F0FF;
+    --cc-mid: #DDD6FE;
+    --cash: #059669;
+    --cash-light: #ECFDF5;
+    --cash-mid: #A7F3D0;
+    --bank: #D97706;
+    --bank-light: #FFFBEB;
+    --bank-mid: #FDE68A;
+    --danger: #DC2626;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: 'Noto Sans TC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    max-width: 430px;
+    margin: 0 auto;
+  }
+
+  .app-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 20px 14px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-sm);
+  }
+  .header-row { display: flex; align-items: center; justify-content: space-between; }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-icon {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(67,97,238,0.3);
+  }
+  .app-title { font-size: 19px; font-weight: 700; letter-spacing: -0.5px; }
+  .header-date { font-size: 11px; color: var(--text3); margin-top: 1px; }
+
+  .export-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 9px 15px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    box-shadow: 0 2px 8px rgba(67,97,238,0.3);
+    transition: all 0.15s;
+  }
+  .export-btn:active { opacity: 0.82; transform: scale(0.97); }
+
+  .summary-strip { padding: 14px 16px 4px; }
+  .summary-title {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text3);
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+    margin-bottom: 9px;
+  }
+  .sum-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .sum-card {
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    padding: 12px 10px 10px;
+    text-align: center;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+  }
+  .sum-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .sum-cc::before { background: var(--cc); }
+  .sum-cash::before { background: var(--cash); }
+  .sum-bank::before { background: var(--bank); }
+
+  .sum-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 5px;
+  }
+  .sum-cc .sum-icon { background: var(--cc-light); }
+  .sum-cash .sum-icon { background: var(--cash-light); }
+  .sum-bank .sum-icon { background: var(--bank-light); }
+
+  .sum-label { font-size: 10px; color: var(--text3); margin-bottom: 4px; font-weight: 500; }
+  .sum-amount { font-size: 14px; font-weight: 700; }
+  .sum-cc .sum-amount { color: var(--cc); }
+  .sum-cash .sum-amount { color: var(--cash); }
+  .sum-bank .sum-amount { color: var(--bank); }
+
+  .add-form {
+    background: var(--surface);
+    margin: 14px 16px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+  }
+  .form-title {
+    background: linear-gradient(135deg, #4361EE 0%, #7C3AED 100%);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .form-body { padding: 16px 16px 18px; display: flex; flex-direction: column; gap: 13px; }
+
+  .field-label {
+    font-size: 10px;
+    color: var(--text2);
+    margin-bottom: 5px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .field input[type="text"],
+  .field input[type="number"],
+  .field input[type="date"] {
+    width: 100%;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 11px 13px;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--surface2);
+    outline: none;
+    transition: all 0.18s;
+    -webkit-appearance: none;
+  }
+  .field input:focus {
+    border-color: var(--accent);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(67,97,238,0.1);
+  }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .pill-group { display: flex; flex-wrap: wrap; gap: 7px; }
+  .pill {
+    border: 1.5px solid var(--border);
+    border-radius: 100px;
+    padding: 7px 13px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text2);
+    background: var(--surface2);
+    cursor: pointer;
+    transition: all 0.14s;
+    user-select: none;
+    -webkit-user-select: none;
+    font-weight: 500;
+  }
+  .pill:active { transform: scale(0.93); }
+  .pill.active-cat { background: var(--accent-light); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .pill.active-cc  { background: var(--cc-light);   border-color: var(--cc);   color: var(--cc);   font-weight: 600; }
+  .pill.active-cash{ background: var(--cash-light); border-color: var(--cash); color: var(--cash); font-weight: 600; }
+  .pill.active-bank{ background: var(--bank-light); border-color: var(--bank); color: var(--bank); font-weight: 600; }
+
+  .submit-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #4361EE 0%, #3451D1 100%);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 2px;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+    box-shadow: 0 3px 10px rgba(67,97,238,0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+  }
+  .submit-btn:active { opacity: 0.84; transform: scale(0.98); }
+
+  .list-section { padding: 0 16px 100px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 18px 0 9px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 100px;
+  }
+  .badge-cc   { background: var(--cc-light);   color: var(--cc);   border: 1px solid var(--cc-mid); }
+  .badge-cash { background: var(--cash-light); color: var(--cash); border: 1px solid var(--cash-mid); }
+  .badge-bank { background: var(--bank-light); color: var(--bank); border: 1px solid var(--bank-mid); }
+
+  .section-count { font-size: 11px; color: var(--text3); font-weight: 500; }
+  .section-total { margin-left: auto; font-size: 15px; font-weight: 700; }
+
+  .entry-list { display: flex; flex-direction: column; gap: 7px; }
+  .entry-item {
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: var(--shadow-sm);
+    animation: slideIn 0.22s cubic-bezier(0.34,1.3,0.64,1);
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .entry-cat-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+    flex-shrink: 0;
+  }
+  .icon-食  { background: #FEF3C7; }
+  .icon-衣  { background: #FCE7F3; }
+  .icon-住  { background: #DBEAFE; }
+  .icon-行  { background: #D1FAE5; }
+  .icon-育  { background: #EDE9FE; }
+  .icon-樂  { background: #FEE2E2; }
+  .icon-其他 { background: #F3F4F6; }
+
+  .entry-cat-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 100px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .badge-食  { background: #FEF3C7; color: #92400E; }
+  .badge-衣  { background: #FCE7F3; color: #9D174D; }
+  .badge-住  { background: #DBEAFE; color: #1E40AF; }
+  .badge-行  { background: #D1FAE5; color: #065F46; }
+  .badge-育  { background: #EDE9FE; color: #5B21B6; }
+  .badge-樂  { background: #FEE2E2; color: #991B1B; }
+  .badge-其他 { background: #F3F4F6; color: #374151; }
+
+  .entry-info { flex: 1; min-width: 0; }
+  .entry-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+  .entry-time { font-size: 11px; color: var(--text3); }
+
+  .entry-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+  .entry-amount { font-size: 15px; font-weight: 700; white-space: nowrap; }
+  .amount-cc   { color: var(--cc); }
+  .amount-cash { color: var(--cash); }
+  .amount-bank { color: var(--bank); }
+
+  .delete-btn {
+    width: 24px; height: 24px;
+    border: 1.5px solid var(--border);
+    background: var(--surface2);
+    color: var(--text3);
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.14s;
+    flex-shrink: 0;
+    padding: 0;
+  }
+  .delete-btn:active { background: #FEE2E2; border-color: #FCA5A5; color: var(--danger); transform: scale(0.86); }
+
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(90px);
+    background: #111827;
+    color: #fff;
+    padding: 11px 22px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 999;
+    transition: transform 0.28s cubic-bezier(0.34,1.56,0.64,1);
+    white-space: nowrap;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .no-entries { color: var(--text3); font-size: 13px; padding: 10px 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="header-row">
+    <div class="header-left">
+      <div class="header-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+      </div>
+      <div>
+        <div class="app-title">記帳本</div>
+        <div class="header-date" id="headerDate"></div>
+      </div>
+    </div>
+    <button class="export-btn" onclick="exportExcel()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      匯出 Excel
+    </button>
+  </div>
+</div>
+
+<div class="summary-strip">
+  <div class="summary-title">本期支出</div>
+  <div class="sum-cards">
+    <div class="sum-card sum-cc">
+      <div class="sum-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      </div>
+      <div class="sum-label">信用卡</div>
+      <div class="sum-amount" id="totalCC">$0</div>
+    </div>
+    <div class="sum-card sum-cash">
+      <div class="sum-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
+      </div>
+      <div class="sum-label">現金</div>
+      <div class="sum-amount" id="totalCash">$0</div>
+    </div>
+    <div class="sum-card sum-bank">
+      <div class="sum-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <div class="sum-label">銀行扣款</div>
+      <div class="sum-amount" id="totalBank">$0</div>
+    </div>
+  </div>
+</div>
+
+<div class="add-form">
+  <div class="form-title">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    新增記帳
+  </div>
+  <div class="form-body">
+    <div class="two-col">
+      <div class="field">
+        <div class="field-label">項目名稱</div>
+        <input type="text" id="itemName" placeholder="例：午餐" autocomplete="off">
+      </div>
+      <div class="field">
+        <div class="field-label">金額（NT$）</div>
+        <input type="number" id="itemAmount" placeholder="0" inputmode="numeric" min="0">
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-label">日期</div>
+      <input type="date" id="itemDate">
+    </div>
+    <div class="field">
+      <div class="field-label">類別</div>
+      <div class="pill-group" id="catGroup">
+        <div class="pill" data-val="食" onclick="selectCat(this)">🍜 食</div>
+        <div class="pill" data-val="衣" onclick="selectCat(this)">👔 衣</div>
+        <div class="pill" data-val="住" onclick="selectCat(this)">🏠 住</div>
+        <div class="pill" data-val="行" onclick="selectCat(this)">🚌 行</div>
+        <div class="pill" data-val="育" onclick="selectCat(this)">📚 育</div>
+        <div class="pill" data-val="樂" onclick="selectCat(this)">🎮 樂</div>
+        <div class="pill" data-val="其他" onclick="selectCat(this)">其他</div>
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-label">付款方式</div>
+      <div class="pill-group" id="payGroup">
+        <div class="pill" data-val="信用卡" onclick="selectPay(this)">💳 信用卡</div>
+        <div class="pill" data-val="現金" onclick="selectPay(this)">💵 現金</div>
+        <div class="pill" data-val="銀行帳戶扣款" onclick="selectPay(this)">🏦 銀行扣款</div>
+      </div>
+    </div>
+    <button class="submit-btn" onclick="addEntry()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      記帳
+    </button>
+  </div>
+</div>
+
+<div class="list-section">
+  <div id="listCC"></div>
+  <div id="listCash"></div>
+  <div id="listBank"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let entries = JSON.parse(localStorage.getItem('ledger_entries') || '[]');
+let selectedCat = '';
+let selectedPay = '';
+
+const catEmoji = {'食':'🍜','衣':'👔','住':'🏠','行':'🚌','育':'📚','樂':'🎮','其他':'📌'};
+
+function formatDate(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+}
+
+function formatDateOnly(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')}`;
+}
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+}
+
+document.getElementById('itemDate').value = todayStr();
+
+function fmt(n) {
+  return '$' + Number(n).toLocaleString('zh-TW');
+}
+
+document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-TW', {year:'numeric',month:'long',day:'numeric',weekday:'short'});
+
+function selectCat(el) {
+  document.querySelectorAll('#catGroup .pill').forEach(p => p.classList.remove('active-cat'));
+  el.classList.add('active-cat');
+  selectedCat = el.dataset.val;
+}
+
+function selectPay(el) {
+  document.querySelectorAll('#payGroup .pill').forEach(p => {
+    p.classList.remove('active-cc','active-cash','active-bank');
+  });
+  const map = {'信用卡':'active-cc','現金':'active-cash','銀行帳戶扣款':'active-bank'};
+  el.classList.add(map[el.dataset.val]);
+  selectedPay = el.dataset.val;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function addEntry() {
+  const name = document.getElementById('itemName').value.trim();
+  const amount = parseFloat(document.getElementById('itemAmount').value);
+  const dateVal = document.getElementById('itemDate').value;
+  if (!name) { showToast('請輸入項目名稱'); return; }
+  if (!amount || amount <= 0) { showToast('請輸入正確金額'); return; }
+  if (!selectedCat) { showToast('請選擇類別'); return; }
+  if (!selectedPay) { showToast('請選擇付款方式'); return; }
+
+  const now = new Date();
+  let ts;
+  if (dateVal) {
+    const [y, m, d] = dateVal.split('-').map(Number);
+    ts = new Date(y, m-1, d, now.getHours(), now.getMinutes(), now.getSeconds()).getTime();
+  } else {
+    ts = Date.now();
+  }
+
+  const entry = { id: Date.now(), name, amount, cat: selectedCat, pay: selectedPay, ts };
+  entries.unshift(entry);
+  save(); render();
+
+  document.getElementById('itemName').value = '';
+  document.getElementById('itemAmount').value = '';
+  document.getElementById('itemDate').value = todayStr();
+  document.querySelectorAll('#catGroup .pill').forEach(p => p.classList.remove('active-cat'));
+  document.querySelectorAll('#payGroup .pill').forEach(p => p.classList.remove('active-cc','active-cash','active-bank'));
+  selectedCat = ''; selectedPay = '';
+  showToast('✓ 已記帳');
+}
+
+function deleteEntry(id) {
+  entries = entries.filter(e => e.id !== id);
+  save(); render();
+}
+
+function save() {
+  localStorage.setItem('ledger_entries', JSON.stringify(entries));
+}
+
+function makeEntryHTML(e) {
+  const amtClass = {'信用卡':'amount-cc','現金':'amount-cash','銀行帳戶扣款':'amount-bank'}[e.pay];
+  const emoji = catEmoji[e.cat] || '📌';
+  return `<div class="entry-item">
+    <div class="entry-cat-icon icon-${e.cat}">${emoji}</div>
+    <div class="entry-info">
+      <div class="entry-name">${e.name}</div>
+      <div class="entry-meta">
+        <span class="entry-cat-badge badge-${e.cat}">${e.cat}</span>
+        <span class="entry-time">${formatDate(e.ts)}</span>
+      </div>
+    </div>
+    <div class="entry-right">
+      <div class="entry-amount ${amtClass}">${fmt(e.amount)}</div>
+      <button class="delete-btn" onclick="deleteEntry(${e.id})" aria-label="刪除">×</button>
+    </div>
+  </div>`;
+}
+
+function renderGroup(containerId, label, badgeClass, payType, colorVar) {
+  const group = entries.filter(e => e.pay === payType);
+  const total = group.reduce((s,e) => s+e.amount, 0);
+  const container = document.getElementById(containerId);
+  if (group.length === 0) { container.innerHTML = ''; return; }
+  container.innerHTML = `
+    <div class="section-header">
+      <span class="section-badge ${badgeClass}">${label}</span>
+      <span class="section-count">${group.length} 筆</span>
+      <div class="section-total" style="color:${colorVar}">${fmt(total)}</div>
+    </div>
+    <div class="entry-list">${group.map(makeEntryHTML).join('')}</div>`;
+}
+
+function render() {
+  renderGroup('listCC','信用卡','badge-cc','信用卡','var(--cc)');
+  renderGroup('listCash','現金','badge-cash','現金','var(--cash)');
+  renderGroup('listBank','銀行帳戶扣款','badge-bank','銀行帳戶扣款','var(--bank)');
+
+  const cc   = entries.filter(e=>e.pay==='信用卡').reduce((s,e)=>s+e.amount,0);
+  const cash = entries.filter(e=>e.pay==='現金').reduce((s,e)=>s+e.amount,0);
+  const bank = entries.filter(e=>e.pay==='銀行帳戶扣款').reduce((s,e)=>s+e.amount,0);
+  document.getElementById('totalCC').textContent   = fmt(cc);
+  document.getElementById('totalCash').textContent = fmt(cash);
+  document.getElementById('totalBank').textContent = fmt(bank);
+}
+
+function exportExcel() {
+  if (entries.length === 0) { showToast('尚無記帳資料'); return; }
+
+  const wb = XLSX.utils.book_new();
+  const catOrder = ['食','衣','住','行','育','樂','其他'];
+  const payTypes = ['現金','信用卡','銀行帳戶扣款'];
+  const cols = {};
+  payTypes.forEach(pay => { cols[pay] = entries.filter(e => e.pay === pay); });
+
+  const data = [];
+  data.push(new Array(18).fill(''));
+  data.push(new Array(18).fill(''));
+  data.push(new Array(18).fill(''));
+  const hdrRow = new Array(18).fill('');
+  hdrRow[6]='現金'; hdrRow[10]='信用卡'; hdrRow[14]='銀行帳戶扣款';
+  data.push(hdrRow);
+  const subHdr = new Array(18).fill('');
+  [6,10,14].forEach(c => {
+    subHdr[c]='項目'; subHdr[c+1]='類別'; subHdr[c+2]='金額(NT$)'; subHdr[c+3]='時間';
+  });
+  data.push(subHdr);
+
+  const flatCols = {};
+  payTypes.forEach(pay => {
+    flatCols[pay] = [];
+    catOrder.forEach(cat => {
+      cols[pay].filter(e => e.cat === cat).forEach(e => {
+        flatCols[pay].push([e.name, e.cat, e.amount, formatDate(e.ts)]);
+      });
+    });
+  });
+
+  const dataRowCount = Math.max(...payTypes.map(p => flatCols[p].length));
+  for (let i = 0; i < dataRowCount; i++) {
+    const row = new Array(18).fill('');
+    payTypes.forEach((pay, pi) => {
+      const base = 6 + pi * 4;
+      if (flatCols[pay][i]) {
+        const [n,c,a,t] = flatCols[pay][i];
+        row[base]=n; row[base+1]=c; row[base+2]=a; row[base+3]=t;
+      }
+    });
+    data.push(row);
+  }
+
+  const totalRow = new Array(18).fill('');
+  payTypes.forEach((pay, pi) => {
+    const base = 6 + pi * 4;
+    const t = cols[pay].reduce((s,e)=>s+e.amount,0);
+    totalRow[base]='合計'; totalRow[base+2]=t;
+  });
+  data.push(totalRow);
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  if (!ws['!merges']) ws['!merges'] = [];
+  ws['!merges'].push(
+    {s:{r:3,c:6},e:{r:3,c:9}},
+    {s:{r:3,c:10},e:{r:3,c:13}},
+    {s:{r:3,c:14},e:{r:3,c:17}}
+  );
+  ws['!cols'] = [];
+  for (let i=0;i<18;i++) {
+    if ([6,10,14].includes(i)) ws['!cols'].push({wch:20});
+    else if ([7,11,15].includes(i)) ws['!cols'].push({wch:8});
+    else if ([8,12,16].includes(i)) ws['!cols'].push({wch:12});
+    else if ([9,13,17].includes(i)) ws['!cols'].push({wch:16});
+    else ws['!cols'].push({wch:4});
+  }
+  XLSX.utils.book_append_sheet(wb, ws, '記帳明細');
+
+  const overview = [['付款方式','類別','金額(NT$)']];
+  payTypes.forEach(pay => {
+    catOrder.forEach(cat => {
+      const t = entries.filter(e=>e.pay===pay&&e.cat===cat).reduce((s,e)=>s+e.amount,0);
+      if (t > 0) overview.push([pay, cat, t]);
+    });
+  });
+  const totalAll = entries.reduce((s,e)=>s+e.amount,0);
+  overview.push(['','總計',totalAll]);
+  const wsOv = XLSX.utils.aoa_to_sheet(overview);
+  wsOv['!cols'] = [{wch:16},{wch:8},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, wsOv, '總覽');
+
+  const now = new Date();
+  const fname = `記帳_${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  showToast('✓ 已匯出 Excel');
+}
+
+render();
+</script>
+</body>
+</html>
